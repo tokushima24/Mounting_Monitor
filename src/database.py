@@ -1,9 +1,9 @@
 import sqlite3
 import datetime
-import os
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 DB_PATH = "breeding_logs.db"
+
 
 class Database:
     def __init__(self, db_path: str = DB_PATH):
@@ -19,7 +19,7 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME NOT NULL,
                 image_path TEXT,
-                confidence REAL,
+                conf REAL,
                 is_mounting BOOLEAN,
                 details TEXT
             )
@@ -27,15 +27,15 @@ class Database:
         conn.commit()
         conn.close()
 
-    def log_detection(self, image_path: str, confidence: float, is_mounting: bool, details: str = ""):
+    def log_detection(self, image_path: str, conf: float, is_mounting: bool, details: str = ""):
         """Log a detection event."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         timestamp = datetime.datetime.now().isoformat()
         cursor.execute('''
-            INSERT INTO detections (timestamp, image_path, confidence, is_mounting, details)
+            INSERT INTO detections (timestamp, image_path, conf, is_mounting, details)
             VALUES (?, ?, ?, ?, ?)
-        ''', (timestamp, image_path, confidence, is_mounting, details))
+        ''', (timestamp, image_path, conf, is_mounting, details))
         conn.commit()
         conn.close()
         print(f"[DB] Logged detection: {timestamp}, Mounting: {is_mounting}")
@@ -45,7 +45,7 @@ class Database:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, timestamp, image_path, confidence, is_mounting, details
+            SELECT id, timestamp, image_path, conf, is_mounting, details
             FROM detections
             ORDER BY timestamp DESC
             LIMIT ?
@@ -53,6 +53,7 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         return rows
+
 
 if __name__ == "__main__":
     # Test

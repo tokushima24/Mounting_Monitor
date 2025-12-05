@@ -1,0 +1,27 @@
+# Configuration file for the System
+
+# Debug
+debug:
+  mode: False
+
+# Detection
+detection:
+  model_path: "models/with_mounting_dark.pt"
+  confidence_threshold: 0.5
+  target_class: 1 # 0: pig, 1: mounting
+
+# Storage
+storage:
+  base_path: "data"
+  save_dir: "data/images"
+  save_raw_image: true
+  save_annotated_image: true
+
+# Notification
+notification:
+  cooldown: 30
+
+# System Log
+logging:
+  file: "logs/system.log"
+  level: "INFO"
