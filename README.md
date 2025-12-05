@@ -1,71 +1,118 @@
-# Swine Breeding Behavior Detection System (豚交配行動自動検出システム)
+# 🐷 Swine Breeding Behavior Detection System
 
-## 概要
-豚舎の天井カメラ映像から、豚の交配行動（マウンティング）をAIで自動検出し、管理者にリアルタイムで通知するシステムです。
-24時間365日の監視を自動化し、交配のチャンスを逃さないこと、および管理者の負担軽減を目的としています。
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
+![uv](https://img.shields.io/badge/Manage_with-uv-purple)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Status](https://img.shields.io/badge/Status-Development-orange)
 
-## 1. Installation
-First, install the required Python libraries:
+豚舎の監視カメラ映像からAI (YOLO) を用いて豚の交配行動 (Mounting Behavior) を自動検出し、管理者へリアルタイムで通知するシステムです。
+
+## ✨ 特徴 (Features)
+
+* **リアルタイム検出**: YOLOv8 (または OpenVINO) を使用した高速な行動認識
+* **RTSP対応**: ネットワークカメラ (NVR) からのストリーミング映像を直接解析
+* **即時通知**: 交配行動を検知すると、Discord (Webhook) へ画像付きでアラートを送信
+* **データ蓄積**: 検知ログと画像を自動で保存・データベース化 (SQLite)
+* **ダッシュボード**: 保存されたログと画像を閲覧できるWebアプリ (Streamlit) 付属
+* **モダンな開発環境**: `uv` による高速で再現性の高い環境構築
+
+## 📂 ディレクトリ構成 (Structure)
+
+```text
+mounting_monitor/
+├── src/                 # ソースコード
+│   ├── app.py           # ダッシュボード (Streamlit)
+│   ├── detector.py      # 検知ロジック (YOLO)
+│   ├── main.py          # 実行エントリーポイント
+│   └── ...
+├── config.yaml          # [設定] 動作パラメータ (Git管理対象)
+├── .env                 # [機密] パスワード・URL (Git管理外)
+├── pyproject.toml       # プロジェクト定義
+├── uv.lock              # 依存関係ロックファイル
+├── logs/                # 実行ログ出力先
+└── data/                # データ保存先 (画像・DB)
+````
+
+## 🚀 セットアップ (Installation)
+
+このプロジェクトはパッケージマネージャー **[uv](https://github.com/astral-sh/uv)** を使用しています。
+
+### 1\. 前提条件
+
+  * Python 3.10 以上
+  * uv がインストールされていること
+      * Mac/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+      * Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`
+
+### 2\. クローンと同期
+
+リポジトリをクローンし、依存ライブラリを同期します。
+
 ```bash
-pip install -r requirements.txt
+git clone [https://github.com/tokushima24/mounting_monitor.git](https://github.com/tokushima24/mounting_monitor.git)
+cd mounting_monitor
+uv sync
 ```
 
-## 2. Configuration (Discord Webhook)
-To receive notifications:
-1.  Create a **Discord Server** (or use an existing one).
-2.  Create a Text Channel (e.g., `#alerts`).
-3.  Click the **Gear Icon** (Edit Channel) -> **Integrations** -> **Webhooks**.
-4.  Click **New Webhook**, name it (e.g., "Pig Monitor"), and copy the **Webhook URL**.
-5.  Open `detector.py` and replace `YOUR_DISCORD_WEBHOOK_URL` with your actual URL.
-    ```python
-    # detector.py
-    WEBHOOK_URL = "https://discord.com/api/webhooks/..." 
-    ```
+### 3\. 設定ファイルの作成
 
-## 3. Running the System
+**① 環境変数ファイル (`.env`)**
+プロジェクトルートに `.env` ファイルを作成し、機密情報を記述します。
 
-### Step 1: Start the Detection Engine
-This will open the camera (or video file) and start detecting.
-```bash
-python detector.py
-```
-*   **Note**: Currently, it is set to detect **"Person"** (class 0) as a placeholder for testing. If you stand in front of the camera, it should trigger a "Mounting Detected" log and notification.
-*   Press `q` to stop the detector.
+```ini
+# .env
+# カメラのRTSPアドレス (ユーザー名:パスワード@IP:ポート)
+RTSP_URL=rtsp://admin:password123@192.168.1.100:558/LiveChannel/0/media.smp
 
-### Step 2: Start the Web Dashboard
-Open a new terminal and run:
-```bash
-streamlit run app.py
-```
-This will open a web browser showing the detection logs and captured images.
-
-## 4. Using Your Custom YOLOv11 Model
-Since you have a pre-trained YOLOv11 model (`.pt` file) optimized for night vision:
-
-1.  **Place the Model**: Copy your `.pt` file (e.g., `yolo11_night.pt`) into the project folder.
-2.  **Update Configuration**: Open `detector.py` and update the `MODEL_PATH`.
-    ```python
-    # detector.py
-    MODEL_PATH = "yolo11_night.pt" 
-    ```
-3.  **Verify Class IDs**: Ensure `TARGET_CLASS_ID` matches the class ID for "mounting" in your custom model (usually `0` if it's the only class).
-
-### Note on Night Vision
-Since your camera supports night vision, ensure the `detector.py` logic handles the grayscale/IR image correctly. YOLO models typically handle this well, but if you see issues, you might need to ensure the input is treated as 3-channel (OpenCV usually reads as BGR even if content is grayscale).
-
-## 5. 24/7 Operation (Deployment)
-To run the system continuously, you need to ensure it restarts if it crashes and keeps running even if you close the terminal.
-
-### Method A: Using the Auto-Restart Script (Recommended)
-We have provided `run.sh` which runs the detector in a loop. If the system crashes (e.g., camera glitch), it will automatically restart after 10 seconds.
-```bash
-./run.sh
+# 通知用 Discord Webhook URL
+WEBHOOK_URL=[https://discord.com/api/webhooks/xxxxxxxx/xxxxxxxx](https://discord.com/api/webhooks/xxxxxxxx/xxxxxxxx)
 ```
 
-### Method B: Running in Background (nohup)
-To keep it running after you close the terminal window (SSH or local):
+**② 設定ファイル (`config.yaml`)**
+必要に応じて `config.yaml` のパラメータ（検知感度や保存設定）を調整してください。
+
+## 🏃‍♂️ 実行方法 (Usage)
+
+`uv run` コマンドを使用することで、仮想環境を意識せずに実行できます。
+
+### 監視システムの起動
+
+カメラ接続と検知を開始します。
+
 ```bash
-nohup ./run.sh > system.log 2>&1 &
+uv run python -m src.main
 ```
-*   **Check status**: `tail -f system.log`
-*   **Stop**: Find the process ID with `ps aux | grep detector` and run `kill [PID]`.
+
+  * 停止するにはコンソールで `Ctrl + C` を押します。
+  * ログは画面および `logs/system.log` に出力されます。
+
+### ダッシュボードの起動
+
+検知履歴を確認するWebアプリを起動します。
+
+```bash
+uv run streamlit run src/app.py
+```
+
+ブラウザが自動的に開き、`http://localhost:8501` でアクセスできます。
+
+## 🛠️ 開発 (Development)
+
+### コード品質管理
+
+以下のツールでコードのフォーマットと静的解析を行います。
+
+```bash
+# コードの自動整形 (Black)
+uv run black src/
+
+# コードのチェック (Flake8)
+uv run flake8 src/
+```
+
+## 📝 License
+
+This project is licensed under the MIT License.
+
+```
+```
