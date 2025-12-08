@@ -14,28 +14,35 @@ class Database:
         """Initialize the database table if it doesn't exist."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute('''
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS detections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME NOT NULL,
                 image_path TEXT,
-                conf REAL,
+                confidence REAL,
                 is_mounting BOOLEAN,
                 details TEXT
             )
-        ''')
+        """
+        )
         conn.commit()
         conn.close()
 
-    def log_detection(self, image_path: str, conf: float, is_mounting: bool, details: str = ""):
+    def log_detection(
+        self, image_path: str, confidence: float, is_mounting: bool, details: str = ""
+    ):
         """Log a detection event."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         timestamp = datetime.datetime.now().isoformat()
-        cursor.execute('''
-            INSERT INTO detections (timestamp, image_path, conf, is_mounting, details)
+        cursor.execute(
+            """
+            INSERT INTO detections (timestamp, image_path, confidence, is_mounting, details)
             VALUES (?, ?, ?, ?, ?)
-        ''', (timestamp, image_path, conf, is_mounting, details))
+        """,
+            (timestamp, image_path, confidence, is_mounting, details),
+        )
         conn.commit()
         conn.close()
         print(f"[DB] Logged detection: {timestamp}, Mounting: {is_mounting}")
@@ -44,12 +51,15 @@ class Database:
         """Retrieve recent logs."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, timestamp, image_path, conf, is_mounting, details
+        cursor.execute(
+            """
+            SELECT id, timestamp, image_path, confidence, is_mounting, details
             FROM detections
             ORDER BY timestamp DESC
             LIMIT ?
-        ''', (limit,))
+        """,
+            (limit,),
+        )
         rows = cursor.fetchall()
         conn.close()
         return rows

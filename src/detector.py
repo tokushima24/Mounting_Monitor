@@ -5,6 +5,7 @@ from ultralytics import YOLO
 from dotenv import load_dotenv
 from pathlib import Path
 import yaml
+import re
 
 # From src Directory
 from database import Database
@@ -24,6 +25,10 @@ with open(CONFIG_PATH, "r") as f:
 
 # Setup Logger
 logger = setup_logger(config_log_path=BASE_DIR / config["logging"]["file"])
+
+
+def mask_password(url):
+    return re.sub(r'(rtsp://[^:]+:)([^@]+)(@.*)', r'\1****\3', str(url))
 
 
 class Detector:
@@ -49,8 +54,9 @@ class Detector:
             if not cap.isOpened():
                 raise Exception(f"Could not open video source {source}")
 
-            print(f"Starting detection on source {source}...")
-            logger.info(f"Starting detection on source {source}...")
+            # Unscured print
+            # print(f"Starting detection on source {mask_password(source)}...")
+            # logger.info(f"Starting detection on source {mask_password(source)}...")
             last_heartbeat_time = time.time()
             heartbeat_interval = 3600 * 12  # 12 Hours
 
