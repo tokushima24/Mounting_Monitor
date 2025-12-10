@@ -34,6 +34,7 @@ else:
             "Confidence",
             "Is Mounting",
             "Details",
+            "Barn ID",
         ],
     )
     # Display Table
@@ -45,12 +46,13 @@ else:
         image_path = row["Image Path"]
         timestamp = row["Timestamp"]
         confidence = row["Confidence"]
+        barn_id = row["Barn ID"]
         col = cols[index % 3]
         with col:
             if os.path.exists(image_path):
                 st.image(
                     image_path,
-                    caption=f"{timestamp} (Conf: {confidence:.2f})",
+                    caption=f"{timestamp} (Conf: {confidence:.2f}) {barn_id}",
                     use_container_width=True,
                 )
             else:

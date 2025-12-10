@@ -86,7 +86,7 @@ class Detector:
             return  # Cooldown not yet expired
 
         # timestamp
-        timestamp = int(current_time)
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_time))
         filename = f"detect_{timestamp}.jpg"
         filepath = os.path.join(self.save_dir, filename)
 
