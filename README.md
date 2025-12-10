@@ -1,115 +1,133 @@
-# 🐷 Swine Breeding Behavior Detection System
+# 🐷 Swine Breeding Behavior Detection System (Desktop Client)
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
-![uv](https://img.shields.io/badge/Manage_with-uv-purple)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Development-orange)
+![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green?logo=qt&logoColor=white)
+![YOLOv8](https://img.shields.io/badge/AI-YOLOv8-purple)
+![Status](https://img.shields.io/badge/Status-Beta-orange)
 
-豚舎の監視カメラ映像からAI (YOLO) を用いて豚の交配行動 (Mounting Behavior) を自動検出し、管理者へリアルタイムで通知するシステムです。
+豚舎の監視カメラ映像からAI (YOLO) を用いて豚の交配行動 (Mounting Behavior) を自動検出し、管理者へ通知するデスクトップアプリケーションです。
 
-## ✨ 特徴 (Features)
+## ✨ 実装済み機能 (Features)
 
-* **リアルタイム検出**: YOLOv8 (または OpenVINO) を使用した高速な行動認識
-* **RTSP対応**: ネットワークカメラ (NVR) からのストリーミング映像を直接解析
-* **即時通知**: 交配行動を検知すると、Discord (Webhook) へ画像付きでアラートを送信
-* **データ蓄積**: 検知ログと画像を自動で保存・データベース化 (SQLite)
-* **ダッシュボード**: 保存されたログと画像を閲覧できるWebアプリ (Streamlit) 付属
-* **モダンな開発環境**: `uv` による高速で再現性の高い環境構築
+### 1. 監視・検知機能
+* **リアルタイム監視**: RTSP接続により、ネットワークカメラの映像を遅延なく表示します。
+* **AI自動検知**: YOLOv8 モデルを使用し、豚の交配行動をリアルタイムで認識します。
+* **自動復旧 (Watchdog)**: 通信断や映像フリーズが発生しても、自動で再接続を行い監視を継続します。
+* **安定通信**: RTSP over TCP を採用し、パケットロスによる映像乱れを最小限に抑えています。
+
+### 2. 通知・記録機能
+* **Discord通知**: 検知時、画像付きのアラートをDiscordチャンネルへ非同期で送信します（監視を止めません）。
+* **画像保存**: 検知の瞬間を画像（枠付き）としてローカルストレージに保存します。
+* **データベース記録**: 検知日時、信頼度、豚舎IDなどをSQLiteデータベースに記録します。
+
+### 3. 管理・操作機能
+* **GUI操作**: 直感的な操作パネルで、監視対象の豚舎（Barn 1〜7）を切り替えられます。
+* **管理者設定**: アプリ上で検知感度や通知クールダウン時間を変更・保存できます（要パスワード）。
+
+## 🚧 今後のロードマップ (Todo / Roadmap)
+
+現在、以下の機能が開発予定（未実装）です。
+
+* [ ] **検知結果の確認機能 (History Viewer)** * 過去の検知ログをカレンダーやリストから検索・閲覧する機能。
+    * 保存された画像をアプリ上でプレビューする機能。
+* [ ] **ストレージ容量警告**
+    * ディスク残量が少なくなった際に警告を出す機能。
+* [ ] **データ自動クリーンアップ**
+    * 古い画像やログを定期的に削除し、容量を確保する機能。
+* [ ] **インストーラー作成 (exe化)**
+    * Windows環境向けに、Python不要で動作する配布用パッケージの作成。
 
 ## 📂 ディレクトリ構成 (Structure)
 
 ```text
 mounting_monitor/
+├── config.yaml          # [設定] 動作パラメータ (GUIから変更可能)
+├── .env                 # [機密] パスワード・URL・Webhook
 ├── src/                 # ソースコード
-│   ├── app.py           # ダッシュボード (Streamlit)
-│   ├── detector.py      # 検知ロジック (YOLO)
-│   ├── main.py          # 実行エントリーポイント
+│   ├── gui/             # GUI関連
+│   │   ├── main_window.py    # メイン画面
+│   │   ├── settings_window.py # 設定画面
+│   │   └── video_thread.py   # 映像取得・自動復旧ロジック
+│   ├── detector.py      # YOLO検知ロジック
+│   ├── notification.py  # Discord通知ロジック
+│   ├── database.py      # データベース操作
 │   └── ...
-├── config.yaml          # [設定] 動作パラメータ (Git管理対象)
-├── .env                 # [機密] パスワード・URL (Git管理外)
-├── pyproject.toml       # プロジェクト定義
-├── uv.lock              # 依存関係ロックファイル
-├── logs/                # 実行ログ出力先
-└── data/                # データ保存先 (画像・DB)
+├── data/                # データ保存先
+│   ├── images/          # 検知画像
+│   └── breeding_logs.db # ログデータベース
+└── models/              # AIモデル格納場所
 ````
 
 ## 🚀 セットアップ (Installation)
 
-このプロジェクトはパッケージマネージャー **[uv](https://github.com/astral-sh/uv)** を使用しています。
-
 ### 1\. 前提条件
 
   * Python 3.10 以上
-  * uv がインストールされていること
-      * Mac/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-      * Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`
+  * [uv](https://github.com/astral-sh/uv) パッケージマネージャー
 
-### 2\. クローンと同期
-
-リポジトリをクローンし、依存ライブラリを同期します。
+### 2\. インストール
 
 ```bash
+# リポジトリのクローン
 git clone [https://github.com/tokushima24/mounting_monitor.git](https://github.com/tokushima24/mounting_monitor.git)
 cd mounting_monitor
+
+# 依存ライブラリの同期
 uv sync
 ```
 
-### 3\. 設定ファイルの作成
+### 3\. 設定ファイルの準備
 
-**① 環境変数ファイル (`.env`)**
-プロジェクトルートに `.env` ファイルを作成し、機密情報を記述します。
+ルートディレクトリに `.env` ファイルを作成し、以下の情報を記述してください。
 
 ```ini
 # .env
-# カメラのRTSPアドレス (ユーザー名:パスワード@IP:ポート)
-RTSP_URL=rtsp://admin:password123@192.168.1.100:558/LiveChannel/0/media.smp
+# 各豚舎のRTSP URL
+RTSP_URL_1=rtsp://admin:pass@192.168.1.10:558/LiveChannel/0/media.smp
+RTSP_URL_2=rtsp://admin:pass@192.168.1.11:558/LiveChannel/0/media.smp
+# ... (RTSP_URL_7 まで)
 
-# 通知用 Discord Webhook URL
-WEBHOOK_URL=[https://discord.com/api/webhooks/xxxxxxxx/xxxxxxxx](https://discord.com/api/webhooks/xxxxxxxx/xxxxxxxx)
+# Discord Webhook URL
+DISCORD_WEBHOOK_URL=[https://discord.com/api/webhooks/xxxx/xxxx](https://discord.com/api/webhooks/xxxx/xxxx)
+
+# 管理者パスワード (設定画面用)
+ADMIN_PASSWORD=admin123
 ```
-
-**② 設定ファイル (`config.yaml`)**
-必要に応じて `config.yaml` のパラメータ（検知感度や保存設定）を調整してください。
 
 ## 🏃‍♂️ 実行方法 (Usage)
 
-`uv run` コマンドを使用することで、仮想環境を意識せずに実行できます。
-
-### 監視システムの起動
-
-カメラ接続と検知を開始します。
+以下のコマンドでアプリケーションを起動します。
 
 ```bash
-uv run python -m src.main
+uv run python -m src.gui.main
 ```
 
-  * 停止するにはコンソールで `Ctrl + C` を押します。
-  * ログは画面および `logs/system.log` に出力されます。
+1.  左側のパネルから「豚舎」を選択します。
+2.  **「Start Monitoring」** を押すと監視を開始します。
+3.  設定を変更する場合は **「Settings (Admin)」** を押し、パスワードを入力してください。
 
-### ダッシュボードの起動
+## 🛠️ 開発者向け情報
 
-検知履歴を確認するWebアプリを起動します。
-
-```bash
-uv run streamlit run src/app.py
-```
-
-ブラウザが自動的に開き、`http://localhost:8501` でアクセスできます。
-
-## 🛠️ 開発 (Development)
-
-### コード品質管理
-
-以下のツールでコードのフォーマットと静的解析を行います。
-
-```bash
-# コードの自動整形 (Black)
-uv run black src/
-
-# コードのチェック (Flake8)
-uv run flake8 src/
-```
+  * **コードフォーマット**: `uv run black src/`
+  * **静的解析**: `uv run flake8 src/`
 
 ## 📝 License
 
 This project is licensed under the MIT License.
+
+```
+
+---
+
+### 次のアクションのご相談
+
+READMEを更新し、現状を整理しました。
+ご指摘の通り、**「検知結果確認機能（履歴ビューア）」は運用上必須の機能** です。
+
+以前コード (`history_window.py`) は提示しましたが、まだ `main_window.py` との結合や動作確認が終わっていない状態です。
+
+exe化（ビルド）に進む前に、この **「履歴機能の実装」を完了させますか？**
+それとも、一旦今の機能だけでビルドのテストを行いますか？
+
+（必須とのことですので、**実装してからビルドに進む** ことを強く推奨します）
+```
