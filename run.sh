@@ -8,7 +8,7 @@ while true; do
     echo "Launching detector at $(date)..."
     
     # Run the detector
-    uv run detector.py
+    uv run src/detector.py
     
     # Check exit code
     EXIT_CODE=$?

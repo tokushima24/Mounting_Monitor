@@ -8,9 +8,9 @@ import yaml
 import re
 
 # From src Directory
-from database import Database
-from notification import Notifier
-from logger_config import setup_logger
+from .database import Database
+from .notification import Notifier
+from .logger_config import setup_logger
 
 # Load environment variables from .env
 load_dotenv()
@@ -28,132 +28,151 @@ logger = setup_logger(config_log_path=BASE_DIR / config["logging"]["file"])
 
 
 def mask_password(url):
-    return re.sub(r'(rtsp://[^:]+:)([^@]+)(@.*)', r'\1****\3', str(url))
+    return re.sub(r"(rtsp://[^:]+:)([^@]+)(@.*)", r"\1****\3", str(url))
 
 
 class Detector:
-    def __init__(self):
+    def __init__(self, barn_id="Unknown"):
+        self.webhook_url = DISCORD_WEBHOOK_URL
         self.model = YOLO(config["detection"]["model_path"])
-        self.notifier = Notifier(DISCORD_WEBHOOK_URL)
-        self.last_notification_time = 1
-        self.notification_cooldown = config["notification"]["cooldown"]
-        self.rtsp_url = RTSP_URL
+        self.notifier = Notifier(self.webhook_url)
         self.db = Database()
+        self.barn_id = barn_id
 
-        if not os.path.exists(config["storage"]["save_dir"]):
-            os.makedirs(config["storage"]["save_dir"])
+        self.last_notification_time = time.time()
+        self.notification_cooldown = config["notification"]["cooldown"]
 
-    def run(self, source=RTSP_URL, debug=config["debug"]["mode"]):
-        if debug:
+        self.save_dir = config["storage"]["save_dir"]
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
+        # self.rtsp_url = RTSP_URL #  Unuseed for GUI
+
+    def process_frame(self, frame):
+        # Inference
+        results = self.model(frame, verbose=False)
+        result = results[0]
+
+        detected = False
+        max_conf = 0.0
+
+        # Check for target class
+        for box in result.boxes:
+            cls_id = int(box.cls[0])
+            conf = float(box.conf[0])
+
+            if (
+                cls_id == config["detection"]["target_class"]
+                and conf > config["detection"]["confidence_threshold"]
+            ):
+                detected = True
+                max_conf = max(max_conf, conf)
+
+        # Draw bounding box for visualization
+        annotated_frame = result.plot()
+
+        # Handle detected
+        if detected:
+            image_to_save = (
+                annotated_frame if config["storage"]["save_annotated_image"] else frame
+            )
+            self._handle_detection(image_to_save, max_conf)
+
+        return annotated_frame, detected, max_conf
+
+    def _handle_detection(self, frame, conf):
+        current_time = time.time()
+        elapsed = current_time - self.last_notification_time
+        if elapsed < self.notification_cooldown:
+            return  # Cooldown not yet expired
+
+        # timestamp
+        timestamp = int(current_time)
+        filename = f"detect_{timestamp}.jpg"
+        filepath = os.path.join(self.save_dir, filename)
+
+        # Save image
+        cv2.imwrite(filepath, frame)
+        logger.info(f"Saved detection image: {filepath}")
+
+        # Log to DB
+        self.db.log_detection(
+            filepath, conf, True, "Mounting behavior detected", self.barn_id
+        )
+
+        # Notification
+        devider = "-" * 20
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_time))
+        message = f"{devider}\nLocation: {self.barn_id}\nTime: {time_str}\nConf: {conf:.2f}"
+
+        self.notifier.send(message, filepath)
+        self.last_notification_time = current_time
+
+    def run(self, source=None, debug=False):
+        if source is None:
+            source = RTSP_URL
+
+        if debug or config.get("debug", {}).get("mode", False):
             print("Debug mode enabled")
-            source = 0
-        # Startup Notification
+            source = 0  # Webcam
+
         self.notifier.send("🟢 System Started: Swine Breeding Detection")
+        logger.info(f"Starting detection on source {mask_password(source)}...")
+
         try:
             cap = cv2.VideoCapture(source)
             if not cap.isOpened():
                 raise Exception(f"Could not open video source {source}")
 
-            # Unscured print
-            # print(f"Starting detection on source {mask_password(source)}...")
-            # logger.info(f"Starting detection on source {mask_password(source)}...")
             last_heartbeat_time = time.time()
             heartbeat_interval = 3600 * 12  # 12 Hours
 
             while True:
                 ret, frame = cap.read()
                 if not ret:
-                    print("End of stream or error reading frame.")
-                    logger.error("End of stream or error reading frame.")
-                    break
+                    # Retry logic
+                    logger.warning("Could not read frame. Retrying in 3s...")
+                    time.sleep(3)
+                    cap = cv2.VideoCapture(source)
+                    if not cap.isOpened():
+                        self.notifier.send("🔴 System Crashed: Video source lost")
+                        break
+                    continue
 
-                # Heartbeat
+                # --- Heartbeat ---
                 current_time = time.time()
                 if current_time - last_heartbeat_time > heartbeat_interval:
                     self.notifier.send("💓 System Alive: Monitoring active")
                     last_heartbeat_time = current_time
 
-                # Inference
-                results = self.model(frame, verbose=False)
-                result = results[0]
+                # --- Process Frame (Modularized) ---
+                annotated_frame, detected, _ = self.process_frame(frame)
 
-                detected = False
-                max_conf = 0.0
+                # --- Display ---
+                # configでannotated表示がONなら描画済み画像、そうでなければ生画像
+                if config.get("debug", {}).get("annotated", True):
+                    display_frame = annotated_frame
+                else:
+                    display_frame = frame
 
-                # Check for target class
-                for box in result.boxes:
-                    cls_id = int(box.cls[0])
-                    conf = float(box.conf[0])
-
-                    if (
-                        cls_id == config["detection"]["target_class"]
-                        and conf > config["detection"]["confidence_threshold"]
-                    ):
-                        detected = True
-                        max_conf = max(max_conf, conf)
-
-                        # Draw bounding box for visualization
-                        x1, y1, x2, y2 = map(int, box.xyxy[0])
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                        cv2.putText(
-                            frame,
-                            f"Mounting {conf:.2f}",
-                            (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5,
-                            (0, 0, 255),
-                            2,
-                        )
-
-                if detected:
-                    timestamp = int(time.time())
-                    filename = f"detect_{timestamp}.jpg"
-                    filepath = os.path.join(config["storage"]["save_dir"], filename)
-
-                    # Save image
-                    cv2.imwrite(filepath, frame)  # TODO: Enable image saving
-
-                    # Log to DB
-                    self.db.log_detection(
-                        filepath, max_conf, True, "Mounting behavior detected"
-                    )
-
-                    # Send Notification (with cooldown)
-                    if (
-                        current_time - self.last_notification_time
-                        > self.notification_cooldown
-                    ):
-                        time_str = time.strftime(
-                            "%Y-%m-%d %H:%M:%S", time.localtime(current_time)
-                        )
-                        message = f"Mounting detected\n Time: {time_str}\nConf: {max_conf:.2f}"
-                        self.notifier.send(message, filepath)
-                        self.last_notification_time = current_time
-
-                # Display (Optional, can be disabled on server)
-                cv2.imshow("Swine Breeding Detection", frame)
+                cv2.imshow("Swine Breeding Detection", display_frame)
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
             cap.release()
             cv2.destroyAllWindows()
-            self.notifier.send("🟡 System Stopped: Manual shutdown or end of stream")
+            self.notifier.send("🟡 System Stopped: Manual shutdown")
 
         except Exception as e:
             error_msg = f"🔴 System Crashed: {str(e)}"
-            print(error_msg)
+            logger.error(error_msg)
             self.notifier.send(error_msg)
             raise e
 
 
 if __name__ == "__main__":
-    # Ensure WEBHOOK_URL is set in the Configuration section above
-    if "YOUR_DISCORD_WEBHOOK_URL" in DISCORD_WEBHOOK_URL or not DISCORD_WEBHOOK_URL:
-        print("Warning: WEBHOOK_URL is not set. Notifications will not be sent.")
-        detector = Detector()
-    else:
-        print("Initializing Detector with Webhook URL...")
-        detector = Detector()
+    if not DISCORD_WEBHOOK_URL:
+        print("Warning: WEBHOOK_URL is not set.")
 
+    detector = Detector()
     detector.run()
