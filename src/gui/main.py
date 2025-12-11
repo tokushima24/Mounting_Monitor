@@ -1,11 +1,14 @@
-# src/gui/main.py
 import sys
 from PyQt6.QtWidgets import QApplication
+from dotenv import load_dotenv
 
-from .main_window import MainWindow
+from src.gui.main_window import MainWindow
+from src.utils import get_base_dir
 
 
 def main():
+    base_dir = get_base_dir()
+    load_dotenv(base_dir / ".env")
 
     app = QApplication(sys.argv)
 

@@ -4,7 +4,7 @@ debug:
 detection:
   model_path: models/with_mounting_dark.pt
   confidence_threshold: 0.6
-  target_class: 0
+  target_class: 1
 storage:
   base_path: data
   save_dir: data/images

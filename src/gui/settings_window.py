@@ -1,6 +1,5 @@
 # src/gui/settings_window.py
 import yaml
-from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,6 +13,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
 )
 from PyQt6.QtCore import Qt
+from src.utils import get_base_dir
 
 
 class SettingsWindow(QWidget):
@@ -23,7 +23,7 @@ class SettingsWindow(QWidget):
         self.resize(500, 400)
 
         # Path to config file (config.yaml)
-        self.base_dir = Path(__file__).resolve().parent.parent.parent
+        self.base_dir = get_base_dir()
         self.config_path = self.base_dir / "config.yaml"
 
         # Layout

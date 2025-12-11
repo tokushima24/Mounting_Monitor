@@ -20,6 +20,7 @@ from PyQt6.QtGui import QFont, QPixmap, QImage
 from .video_thread import VideoThread
 from src.notification import Notifier
 from .settings_window import SettingsWindow
+from .history_window import HistoryWindow
 
 # Load .env file
 load_dotenv()
@@ -54,8 +55,9 @@ class MainWindow(QMainWindow):
         webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
         self.notifier = Notifier(webhook_url)
 
-        # Settings Window
+        # Child Windows
         self.settings_window = None
+        self.history_window = None
 
     def create_sidebar(self):
         """Create the left sidebar UI"""
@@ -204,10 +206,21 @@ class MainWindow(QMainWindow):
         self.btn_start.clicked.connect(self.on_start_clicked)
         self.btn_stop.clicked.connect(self.on_stop_clicked)
         self.btn_test_notify.clicked.connect(self.on_test_notify_clicked)  # TODO: テスト後削除？
+        self.btn_history.clicked.connect(self.on_history_clicked)
         self.btn_settings.clicked.connect(self.on_settings_clicked)
 
         # Add sidebar to main layout
         self.main_layout.addWidget(sidebar)
+
+    def on_history_clicked(self):
+        """Open the History Viewer window."""
+        if self.history_window is None:
+            self.history_window = HistoryWindow()
+
+        # Bring window to front
+        self.history_window.show()
+        self.history_window.raise_()
+        self.history_window.activateWindow()
 
     def on_settings_clicked(self):
         """Open settings window"""

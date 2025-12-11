@@ -3,14 +3,23 @@ import time
 import os
 from ultralytics import YOLO
 from dotenv import load_dotenv
-from pathlib import Path
 import yaml
 import re
 
-# From src Directory
 from .database import Database
 from .notification import Notifier
 from .logger_config import setup_logger
+from src.utils import get_base_dir
+
+
+def load_config():
+    with open(CONFIG_PATH, "r") as f:
+        return yaml.safe_load(f)
+
+
+def mask_password(url):
+    return re.sub(r"(rtsp://[^:]+:)([^@]+)(@.*)", r"\1****\3", str(url))
+
 
 # Load environment variables from .env
 load_dotenv()
@@ -18,36 +27,45 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 RTSP_URL = os.getenv("RTSP_URL")
 
 # Load configuration from config.yaml
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = get_base_dir()
 CONFIG_PATH = BASE_DIR / "config.yaml"
-with open(CONFIG_PATH, "r") as f:
-    config = yaml.safe_load(f)
+config = load_config()
 
 # Setup Logger
 logger = setup_logger(config_log_path=BASE_DIR / config["logging"]["file"])
 
 
-def mask_password(url):
-    return re.sub(r"(rtsp://[^:]+:)([^@]+)(@.*)", r"\1****\3", str(url))
-
-
 class Detector:
     def __init__(self, barn_id="Unknown"):
         self.webhook_url = DISCORD_WEBHOOK_URL
-        self.model = YOLO(config["detection"]["model_path"])
-        self.notifier = Notifier(self.webhook_url)
+
+        # Model
+        model_rel_path = config["detection"]["model_path"]
+        self.model_path = BASE_DIR / model_rel_path
+        self.model = YOLO(self.model_path)
+
+        # DB
         self.db = Database()
+
+        # Barn ID
         self.barn_id = barn_id
 
+        # Notification
+        self.notifier = Notifier(self.webhook_url)
         self.last_notification_time = time.time()
         self.notification_cooldown = config["notification"]["cooldown"]
 
-        self.save_dir = config["storage"]["save_dir"]
+        # Storage
+        save_dir_rel = config["storage"]["save_dir"]
+        self.save_dir = BASE_DIR / save_dir_rel
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-        # self.rtsp_url = RTSP_URL #  Unuseed for GUI
 
     def process_frame(self, frame):
+        # reload config
+        global config
+        config = load_config()
+
         # Inference
         results = self.model(frame, verbose=False)
         result = results[0]
@@ -102,7 +120,9 @@ class Detector:
         # Notification
         devider = "-" * 20
         time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_time))
-        message = f"{devider}\nLocation: {self.barn_id}\nTime: {time_str}\nConf: {conf:.2f}"
+        message = (
+            f"{devider}\nLocation: {self.barn_id}\nTime: {time_str}\nConf: {conf:.2f}"
+        )
 
         self.notifier.send(message, filepath)
         self.last_notification_time = current_time
