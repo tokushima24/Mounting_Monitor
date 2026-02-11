@@ -8,7 +8,7 @@
 # ------------------
 detection:
   # Path to YOLO model file (relative to application root)
-  model_path: models/yolo11s_best.pt
+  model_path: models/yolo_best.pt
   
   # Minimum confidence threshold for detections (0.0 - 1.0)
   confidence_threshold: 0.5

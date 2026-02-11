@@ -66,16 +66,20 @@ class VideoThread(QThread):
                         last_frame_time = time.time()
 
                         # Inference & Annotate
-                        annotated_frame, detected, conf, class_name = self.detector.process_frame(frame)
+                        annotated_frame, detected, conf, class_name = (
+                            self.detector.process_frame(frame)
+                        )
 
                         if detected:
-                            self.status_signal.emit(f"{class_name} DETECTED! (Conf: {conf:.2f})")
+                            self.status_signal.emit(
+                                f"{class_name} DETECTED! (Conf: {conf:.2f})"
+                            )
 
                         # Draw
                         rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                         h, w, ch = rgb_image.shape
                         bytes_per_line = ch * w
-                        
+
                         # Create QImage matching the numpy array
                         qt_image = QImage(
                             rgb_image.data,
@@ -120,3 +124,10 @@ class VideoThread(QThread):
     def stop(self):  # Botton to stop the video stream
         self._run_flag = False
         self.wait()
+
+    def update_scheduler(self, new_scheduler: NotificationScheduler) -> None:
+        """Update the notification scheduler dynamically."""
+        self.scheduler = new_scheduler
+        if self.detector:
+            self.detector.set_scheduler(new_scheduler)
+        logger.info("VideoThread scheduler updated")

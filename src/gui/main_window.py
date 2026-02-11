@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
 
         # Initialize Database
         self.db = Database()
-        
+
         # Migration: Import camera from .env if DB is empty (for backward compatibility)
         if not self.db.get_cameras():
             env_url = os.getenv("RTSP_URL")
@@ -66,12 +66,10 @@ class MainWindow(QMainWindow):
         self.scheduler = create_scheduler_from_env(db=self.db)
         self.scheduler.set_notification_callback(self._on_notification_sent)
         self.scheduler.start()  # Start background scheduler thread
-        
+
         # Legacy Discord notifier (for test button)
         webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
         self.notifier = Notifier(webhook_url)
-
-
 
         # Child Windows
         self.settings_window = None
@@ -145,10 +143,10 @@ class MainWindow(QMainWindow):
             }
         """
         )
-        
+
         # Load cameras from DB
         self.refresh_camera_list()
-        
+
         group_layout.addWidget(self.barn_selector)
         group_barn.setLayout(group_layout)
         layout.addWidget(group_barn)
@@ -160,7 +158,7 @@ class MainWindow(QMainWindow):
         self.btn_start = QPushButton("Start Monitoring")
         self.btn_start.setMinimumHeight(50)
         self.btn_start.setStyleSheet(
-        """
+            """
         QPushButton {
                 background-color: #4CAF50;
                 color: white;
@@ -176,7 +174,7 @@ class MainWindow(QMainWindow):
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setMinimumHeight(50)
         self.btn_stop.setStyleSheet(
-        """
+            """
         QPushButton {
                 background-color: #f44336;
                 color: white;
@@ -203,16 +201,16 @@ class MainWindow(QMainWindow):
         self.camera_status = QLabel("Camera: Not connected")
         self.camera_status.setStyleSheet("color: #888; font-size: 11px; padding: 5px;")
         layout.addWidget(self.camera_status)
-        
+
         layout.addStretch()
-        
+
         # --- Separator ---
         separator = QFrame()
         separator.setObjectName("separator")
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFixedHeight(1)
         layout.addWidget(separator)
-        
+
         # --- D. Management Buttons ---
         common_btn_style = """
             QPushButton {
@@ -233,7 +231,7 @@ class MainWindow(QMainWindow):
 
         self.btn_settings = QPushButton("Settings")
         self.btn_settings.setStyleSheet(common_btn_style)
-        
+
         self.btn_test_notify = QPushButton("Test Notification")
         self.btn_test_notify.setStyleSheet(common_btn_style)
 
@@ -265,35 +263,34 @@ class MainWindow(QMainWindow):
     def on_settings_clicked(self):
         """Open settings window"""
         correct_password = os.getenv("ADMIN_PASSWORD")
-        
+
         # Create custom password dialog with IME disabled
         dialog = QDialog(self)
         dialog.setWindowTitle("Password")
         dialog.setFixedWidth(300)
-        
+
         layout = QVBoxLayout(dialog)
-        
+
         label = QLabel("Enter password:")
         layout.addWidget(label)
-        
+
         password_input = QLineEdit()
         password_input.setEchoMode(QLineEdit.EchoMode.Password)
         # Disable IME (Japanese input)
         password_input.setInputMethodHints(
-            Qt.InputMethodHint.ImhLatinOnly | 
-            Qt.InputMethodHint.ImhPreferLowercase
+            Qt.InputMethodHint.ImhLatinOnly | Qt.InputMethodHint.ImhPreferLowercase
         )
         layout.addWidget(password_input)
-        
+
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
-        
+
         password_input.setFocus()
-        
+
         if dialog.exec() == QDialog.DialogCode.Accepted:
             password = password_input.text()
             if password == correct_password:
@@ -307,21 +304,11 @@ class MainWindow(QMainWindow):
                 self.settings_window.activateWindow()
             else:
                 QMessageBox.warning(self, "Access Denied", "Incorrect Password")
-    
+
     def _on_settings_saved(self):
-        """Handle settings saved - reload scheduler if not monitoring."""
-        if self.thread and self.thread.isRunning():
-            # Alert when monitoring 
-            QMessageBox.information(
-                self,
-                "Settings Applied",
-                "Notification settings will be applied when monitoring is restarted."
-            )
-            return
-        
-        # Reload when not monitoring
+        """Handle settings saved - reload scheduler immediately."""
         self._reload_scheduler()
-    
+
     def _reload_scheduler(self):
         """Reload the notification scheduler with new settings."""
         # Also refresh camera list in case cameras were added/removed
@@ -331,15 +318,23 @@ class MainWindow(QMainWindow):
             # Stop existing scheduler
             if self.scheduler:
                 self.scheduler.stop()
-            
+
             # Reload environment variables
             load_dotenv(override=True)
-            
+
             # Create and start new scheduler
             self.scheduler = create_scheduler_from_env()
             if self.scheduler:
+                self.scheduler.set_notification_callback(self._on_notification_sent)
                 self.scheduler.start()
-                self.update_status("Settings reloaded")
+
+                # Push new scheduler to running thread
+                if self.thread and self.thread.isRunning():
+                    self.thread.update_scheduler(self.scheduler)
+                    self.update_status("Settings updated (Live)")
+                else:
+                    self.update_status("Settings reloaded")
+
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to reload scheduler: {e}")
 
@@ -349,7 +344,9 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(video_area)
 
         # Operation Guide Bar (Top)
-        self.guide_bar = QLabel("Quick Guide: Select Barn > Click Start > Monitor > Click Stop to end")
+        self.guide_bar = QLabel(
+            "Quick Guide: Select Barn > Click Start > Monitor > Click Stop to end"
+        )
         self.guide_bar.setStyleSheet(
             """
             QLabel {
@@ -368,7 +365,8 @@ class MainWindow(QMainWindow):
         # Status Bar
         self.status_bar = QLabel("Ready")
         self.status_bar.setStyleSheet(
-            "background-color: #333; color: white; padding: 8px; font-weight: bold; font-size: 13px;"
+            "background-color: #333; color: white; padding: 8px; font-weight: bold; "
+            "font-size: 13px;"
         )
         self.status_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_bar)
@@ -417,7 +415,7 @@ class MainWindow(QMainWindow):
         """Refresh the camera list from the database."""
         current_selection = self.barn_selector.currentText()
         self.barn_selector.clear()
-        
+
         cameras = self.db.get_cameras()
         if not cameras:
             self.barn_selector.addItem("No cameras found", None)
@@ -426,7 +424,7 @@ class MainWindow(QMainWindow):
         for cam in cameras:
             # cam: (id, name, source, description, ...)
             self.barn_selector.addItem(cam[1], cam[2])
-            
+
         # Try to restore selection
         index = self.barn_selector.findText(current_selection)
         if index >= 0:
@@ -436,7 +434,7 @@ class MainWindow(QMainWindow):
     def _on_notification_sent(self, mode, payload):
         """Handle notification callback from scheduler."""
         if mode == "immediate":
-             # payload is list of detections
+            # payload is list of detections
             count = len(payload)
             self.update_status(f"Notification sent: {count} alert(s)")
         elif mode == "daily":
@@ -447,10 +445,10 @@ class MainWindow(QMainWindow):
         # 1. Get selected camera source
         selection = self.barn_selector.currentText()
         source = self.barn_selector.currentData()
-        
+
         if source is None:
-             self.update_status("Error: No camera selected")
-             return
+            self.update_status("Error: No camera selected")
+            return
 
         # 2. Handle source (integer for webcam, string for URL)
         # Check if source is a digit (local camera index)
@@ -475,7 +473,9 @@ class MainWindow(QMainWindow):
         self.btn_stop.setEnabled(True)
         self.barn_selector.setEnabled(False)
         self.camera_status.setText("Camera: Connected")
-        self.camera_status.setStyleSheet("color: #4CAF50; font-size: 11px; padding: 5px;")
+        self.camera_status.setStyleSheet(
+            "color: #4CAF50; font-size: 11px; padding: 5px;"
+        )
 
     def on_stop_clicked(self):
         if self.thread:
@@ -496,14 +496,19 @@ class MainWindow(QMainWindow):
     # Notification Test Button
     def on_test_notify_clicked(self):
         if not self.notifier.webhook_url:
-            QMessageBox.warning(self, "Notification Error", "Webhook URL not set in .env")
+            QMessageBox.warning(
+                self, "Notification Error", "Webhook URL not set in .env"
+            )
             return
 
         # Log message
-        reply = QMessageBox.question(self, 'Test Notification',
-                                     'Send a test message to Discord?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self,
+            "Test Notification",
+            "Send a test message to Discord?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
 
         if reply == QMessageBox.StandardButton.Yes:
             self.notifier.send("[TEST] This is a test message from Swine Monitor GUI.")
@@ -512,15 +517,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Handle window close event."""
         print("[GUI] Closing application...")
-        
+
         # Stop video thread if running
         if self.thread:
             self.thread.stop()
             self.thread.wait()  # Wait for thread to finish
-        
+
         # Stop notification scheduler
         if self.scheduler:
             self.scheduler.stop()
-        
-        event.accept()
 
+        event.accept()

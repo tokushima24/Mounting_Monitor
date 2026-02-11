@@ -1,5 +1,5 @@
 detection:
-  model_path: models/with_mounting_dark.pt
+  model_path: models/yolo11s.pt
   confidence_threshold: 0.5
   target_class: 1
 storage:

@@ -40,7 +40,7 @@ CONFIG_PATH = BASE_DIR / "config.yaml"
 def load_config() -> dict[str, Any]:
     """
     Load configuration from config.yaml.
-    
+
     Returns:
         dict: Configuration dictionary.
     """
@@ -48,7 +48,11 @@ def load_config() -> dict[str, Any]:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     return {
-        "detection": {"model_path": "models/best.pt", "confidence_threshold": 0.5, "target_class": 1},
+        "detection": {
+            "model_path": "models/best.pt",
+            "confidence_threshold": 0.5,
+            "target_class": 1,
+        },
         "notification": {"cooldown": 30},
         "storage": {"save_dir": "data/images", "save_annotated_image": True},
         "logging": {"file": "logs/system.log"},
@@ -58,13 +62,13 @@ def load_config() -> dict[str, Any]:
 def mask_password(url: str) -> str:
     """
     Mask password in RTSP URL for safe logging.
-    
+
     Args:
         url: RTSP URL potentially containing password.
-        
+
     Returns:
         URL with password replaced by asterisks.
-        
+
     Examples:
         >>> mask_password("rtsp://admin:secret123@192.168.1.1/stream")
         'rtsp://admin:****@192.168.1.1/stream'
@@ -78,10 +82,11 @@ logger = setup_logger(log_path=str(BASE_DIR / config["logging"]["file"]))
 last_config_check = 0
 config_mtime = 0
 
+
 def get_latest_config():
     """Effectively load config with caching to avoid disk I/O on every frame."""
     global config, last_config_check, config_mtime
-    
+
     current_time = time.time()
     if current_time - last_config_check > 5.0:  # Check every 5 seconds
         last_config_check = current_time
@@ -102,13 +107,14 @@ def get_latest_config():
 # Detector Class
 # =============================================================================
 
+
 class Detector:
     """
     YOLO-based pig mounting behavior detector.
-    
+
     Processes video frames to detect mounting behavior, saves detection images,
     logs to database, and sends notifications via configured channels.
-    
+
     Attributes:
         model: YOLO model instance.
         db: Database instance for logging detections.
@@ -117,12 +123,12 @@ class Detector:
         notifier: Discord notifier (legacy).
         save_dir: Directory for saving detection images.
         notification_cooldown: Minimum seconds between notifications.
-        
+
     Examples:
         >>> detector = Detector(barn_id="Barn 1")
         >>> annotated, detected, conf, cls_name = detector.process_frame(frame)
     """
-    
+
     def __init__(
         self,
         barn_id: str = "Unknown",
@@ -130,54 +136,52 @@ class Detector:
     ) -> None:
         """
         Initialize the detector.
-        
+
         Args:
             barn_id: Identifier for the barn being monitored.
             scheduler: NotificationScheduler instance for sending alerts.
         """
         self.webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "")
-        
+
         # Load YOLO model
         model_rel_path = config["detection"]["model_path"]
         self.model_path: Path = BASE_DIR / model_rel_path
         self.model = YOLO(str(self.model_path))
-        
+
         # Database
         self.db = Database()
-        
+
         # Barn identification
         self.barn_id = barn_id
-        
+
         # Notifications
         self.scheduler = scheduler
         self.notifier = Notifier(self.webhook_url)  # Legacy Discord support
         self.last_notification_time: float = time.time()
-        self.notification_cooldown: int = config["notification"]["cooldown"]
-        
+        # Cooldown is now read dynamically from config in _handle_detection
+
         # Storage
         save_dir_rel = config.get("storage", {}).get("save_dir", "data/images")
         self.save_dir: Path = BASE_DIR / save_dir_rel
         self.save_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def set_scheduler(self, scheduler: NotificationScheduler) -> None:
         """
         Attach a notification scheduler to the detector.
-        
+
         Args:
             scheduler: NotificationScheduler instance.
         """
         self.scheduler = scheduler
         logger.info("Notification scheduler attached to detector")
-    
-    def process_frame(
-        self, frame: np.ndarray
-    ) -> tuple[np.ndarray, bool, float, str]:
+
+    def process_frame(self, frame: np.ndarray) -> tuple[np.ndarray, bool, float, str]:
         """
         Process a single video frame for mounting detection.
-        
+
         Args:
             frame: Input frame as numpy array (BGR format from OpenCV).
-            
+
         Returns:
             Tuple of (annotated_frame, detected, max_confidence, class_name):
                 - annotated_frame: Frame with detection boxes drawn
@@ -188,50 +192,48 @@ class Detector:
         # Reload config if changed
         global config
         config = get_latest_config()
-        
+
         # Run inference
         results = self.model(frame, verbose=False, conf=0.1)
         result = results[0]
-        
+
         detected = False
         max_conf = 0.0
         class_name = "Unknown"
-        
+
         # Check for target class above threshold
         target_class_id = config["detection"]["target_class"]
         threshold = config["detection"]["confidence_threshold"]
-        
+
         for box in result.boxes:
             cls_id = int(box.cls[0])
             conf = float(box.conf[0])
-            
+
             if cls_id == target_class_id and conf > threshold:
                 detected = True
                 if conf > max_conf:
                     max_conf = conf
                     # Get class name only once or from names dict
                     class_name = self.model.names[cls_id]
-        
+
         # Draw bounding boxes
         annotated_frame = result.plot()
-        
+
         # Handle detection event
         if detected:
             image_to_save = (
-                annotated_frame
-                if config["storage"]["save_annotated_image"]
-                else frame
+                annotated_frame if config["storage"]["save_annotated_image"] else frame
             )
             self._handle_detection(image_to_save, max_conf, class_name)
-        
+
         return annotated_frame, detected, max_conf, class_name
-    
+
     def _handle_detection(
         self, frame: np.ndarray, conf: float, class_name: str
     ) -> None:
         """
         Handle a positive detection: save image, log to DB, send notification.
-        
+
         Args:
             frame: The frame to save.
             conf: Detection confidence score.
@@ -239,20 +241,25 @@ class Detector:
         """
         current_time = time.time()
         elapsed = current_time - self.last_notification_time
-        
-        if elapsed < self.notification_cooldown:
+
+        # Read cooldown dynamically
+        cooldown = config["notification"].get("cooldown", 30)
+
+        if elapsed < cooldown:
             return  # Still in cooldown period
-        
+
         # Generate timestamp strings
         timestamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime(current_time))
-        timestamp_display = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_time))
-        
+        timestamp_display = time.strftime(
+            "%Y-%m-%d %H:%M:%S", time.localtime(current_time)
+        )
+
         # Save image
         filename = f"detect_{timestamp}.jpg"
         filepath = str(self.save_dir / filename)
         cv2.imwrite(filepath, frame)
         logger.info(f"Saved detection image: {filepath}")
-        
+
         # Log to database
         self.db.log_detection(
             image_path=filepath,
@@ -260,9 +267,9 @@ class Detector:
             is_mounting=True,
             details=f"{class_name} behavior detected",
             barn_id=self.barn_id,
-            class_name=class_name
+            class_name=class_name,
         )
-        
+
         # Send notification
         if self.scheduler:
             # Use unified notification scheduler (supports email + Discord)
@@ -283,13 +290,13 @@ class Detector:
                 f"Confidence: {conf:.2f}"
             )
             self.notifier.send(message, filepath)
-        
+
         self.last_notification_time = current_time
-    
+
     def run(self, source: Optional[str | int] = None, debug: bool = False) -> None:
         """
         Run the detection loop on a video source.
-        
+
         Args:
             source: Video source (RTSP URL, file path, or camera index as int).
                    If None, uses RTSP_URL from environment.
@@ -297,22 +304,22 @@ class Detector:
         """
         # Determine video source
         video_source: str | int = source if source is not None else RTSP_URL
-        
+
         if debug or config.get("debug", {}).get("mode", False):
             logger.info("Debug mode enabled - using webcam")
             video_source = 0
-        
+
         self.notifier.send("[START] Swine Breeding Detection System")
         logger.info(f"Starting detection on source: {mask_password(str(video_source))}")
-        
+
         try:
             cap = cv2.VideoCapture(video_source)
             if not cap.isOpened():
                 raise RuntimeError(f"Could not open video source: {video_source}")
-            
+
             last_heartbeat = time.time()
             heartbeat_interval = 3600 * 12  # 12 hours
-            
+
             while True:
                 ret, frame = cap.read()
                 if not ret:
@@ -323,16 +330,16 @@ class Detector:
                         self.notifier.send("[ERROR] Video source lost")
                         break
                     continue
-                
+
                 # Heartbeat notification
                 current_time = time.time()
                 if current_time - last_heartbeat > heartbeat_interval:
                     self.notifier.send("[HEARTBEAT] System is running normally")
                     last_heartbeat = current_time
-                
+
                 # Process frame
                 annotated_frame, _, _, _ = self.process_frame(frame)
-                
+
                 # Display
                 display_frame = (
                     annotated_frame
@@ -340,14 +347,14 @@ class Detector:
                     else frame
                 )
                 cv2.imshow("Swine Breeding Detection", display_frame)
-                
+
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
-            
+
             cap.release()
             cv2.destroyAllWindows()
             self.notifier.send("[STOP] System stopped by user")
-            
+
         except Exception as e:
             error_msg = f"[ERROR] System crashed: {e}"
             logger.error(error_msg)
@@ -362,6 +369,6 @@ class Detector:
 if __name__ == "__main__":
     if not os.getenv("DISCORD_WEBHOOK_URL"):
         print("Warning: DISCORD_WEBHOOK_URL is not set")
-    
+
     detector = Detector()
     detector.run()

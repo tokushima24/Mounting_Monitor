@@ -95,18 +95,16 @@ if [ -d "dist/SwineMonitor" ]; then
     echo "  - logs/ directory created"
     
     # Copy model file if exists
-    if [ -f "models/yolo11s.pt" ]; then
-        cp models/yolo11s.pt dist/SwineMonitor/models/
-        echo "  - YOLO model copied"
-    else
-        echo -e "${YELLOW}  - Warning: No YOLO model found in models/${NC}"
-    fi
-
     if [ -f "models/yolo_best.pt" ]; then
         cp models/yolo_best.pt dist/SwineMonitor/models/
-        echo "  - YOLO model copied"
+        echo "  - YOLO model copied (yolo_best.pt)"
     else
-        echo -e "${YELLOW}  - Warning: No YOLO model found in models/${NC}"
+        echo -e "${YELLOW}  - Warning: No YOLO model found (models/yolo_best.pt)${NC}"
+    fi
+
+    if [ -f "models/yolo11s.pt" ]; then
+        cp models/yolo11s.pt dist/SwineMonitor/models/
+        echo "  - YOLO model copied (yolo11s.pt)"
     fi
     
     echo -e "\n${GREEN}Build output: dist/SwineMonitor/${NC}"
