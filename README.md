@@ -1,116 +1,218 @@
-# 🐷 Swine Breeding Behavior Detection System (Desktop Client)
+# Swine Monitor
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
-![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green?logo=qt&logoColor=white)
-![YOLOv8](https://img.shields.io/badge/AI-YOLOv8-purple)
-![Status](https://img.shields.io/badge/Status-Beta-orange)
+**Real-time pig breeding behavior detection system using YOLO and PyQt6**
 
-豚舎の監視カメラ映像からAI (YOLO) を用いて豚の交配行動 (Mounting Behavior) を自動検出し、管理者へ通知するデスクトップアプリケーションです。
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 実装済み機能 (Features)
+## Overview
 
-### 1. 監視・検知機能
-* **リアルタイム監視**: RTSP接続により、ネットワークカメラの映像を遅延なく表示します。
-* **AI自動検知**: YOLOv8 モデルを使用し、豚の交配行動をリアルタイムで認識します。
-* **自動復旧 (Watchdog)**: 通信断や映像フリーズが発生しても、自動で再接続を行い監視を継続します。
-* **安定通信**: RTSP over TCP を採用し、パケットロスによる映像乱れを最小限に抑えています。
+Swine Monitor is a desktop application for automated detection of pig mating (mounting) behavior using computer vision. It provides real-time monitoring, notification alerts, and detection history management.
 
-### 2. 通知・記録機能
-* **Discord通知**: 検知時、画像付きのアラートをDiscordチャンネルへ非同期で送信します（監視を止めません）。
-* **画像保存**: 検知の瞬間を画像（枠付き）としてローカルストレージに保存します。
-* **データベース記録**: 検知日時、信頼度、豚舎IDなどをSQLiteデータベースに記録します。
+### Key Features
 
-### 3. 管理・操作機能
-* **GUI操作**: 直感的な操作パネルで、監視対象の豚舎（Barn 1〜7）を切り替えられます。
-* **管理者設定**: アプリ上で検知感度や通知クールダウン時間を変更・保存できます（要パスワード）。
+- **Real-time Detection**: YOLO-based mounting behavior detection from IP cameras
+- **Multi-barn Support**: Monitor multiple barns/pens simultaneously
+- **Notification System**: Email and Discord alerts with customizable schedules
+- **Detection History**: Browse past detections with image preview
+- **Cross-platform**: Runs on Windows and macOS
 
-## 今後のロードマップ (Todo / Roadmap)
+## Quick Start
 
-現在、以下の機能が開発予定（未実装）です。
+### Prerequisites
 
-* [ ] **検知結果の確認機能 (History Viewer)** * 過去の検知ログをカレンダーやリストから検索・閲覧する機能。
-    * 保存された画像をアプリ上でプレビューする機能。
-* [ ] **ストレージ容量警告**
-    * ディスク残量が少なくなった際に警告を出す機能。
-* [ ] **データ自動クリーンアップ**
-    * 古い画像やログを定期的に削除し、容量を確保する機能。
-* [ ] **インストーラー作成 (exe化)**
-    * Windows環境向けに、Python不要で動作する配布用パッケージの作成。
+- Python 3.10 or higher
+- IP camera with RTSP support (or webcam for testing)
+- YOLO model file (`.pt` format)
 
-## ディレクトリ構成 (Structure)
+### Installation
 
-```text
-mounting_monitor/
-├── config.yaml          # [設定] 動作パラメータ (GUIから変更可能)
-├── .env                 # [機密] パスワード・URL・Webhook
-├── src/                 # ソースコード
-│   ├── gui/             # GUI関連
-│   │   ├── main_window.py    # メイン画面
-│   │   ├── settings_window.py # 設定画面
-│   │   └── video_thread.py   # 映像取得・自動復旧ロジック
-│   ├── detector.py      # YOLO検知ロジック
-│   ├── notification.py  # Discord通知ロジック
-│   ├── database.py      # データベース操作
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-org/swine-monitor.git
+   cd swine-monitor
+   ```
+
+2. **Create virtual environment**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # macOS/Linux
+   # or
+   .venv\Scripts\activate     # Windows
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure settings**
+   ```bash
+   cp config.yaml.template config.yaml
+   cp .env.template .env
+   # Edit .env with your camera URL and notification settings
+   ```
+
+5. **Add YOLO model**
+   ```bash
+   # Place your trained model in the models/ directory
+   cp /path/to/your/model.pt models/yolo11s_best.pt
+   ```
+
+6. **Run the application**
+   ```bash
+   python -m src.gui.main
+   ```
+
+---
+
+## Configuration
+
+### config.yaml
+
+```yaml
+detection:
+  model_path: models/yolo11s_best.pt
+  confidence_threshold: 0.5
+  target_class: 1  # 1 = Mounting behavior
+
+notification:
+  cooldown: 30  # Seconds between notifications
+
+storage:
+  save_dir: detections
+  db_path: data/detections.db
+```
+
+### .env
+
+```bash
+# Camera
+RTSP_URL=rtsp://admin:password@192.168.1.100:554/stream
+
+# Email (Gmail)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+RECIPIENT_EMAIL=farm-manager@example.com
+EMAIL_ENABLED=true
+
+# Discord (optional)
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+DISCORD_ENABLED=false
+
+# Security
+ADMIN_PASSWORD=your-secure-password
+```
+
+---
+
+## Building Executables
+
+### macOS
+
+```bash
+./scripts/build_mac.sh
+# Output: dist/SwineMonitor/
+```
+
+### Windows
+
+```batch
+scripts\build_windows.bat
+# Output: dist\SwineMonitor\
+```
+
+See [docs/BUILD_MAC.md](docs/BUILD_MAC.md) for detailed build instructions.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and module descriptions |
+| [BUILD_MAC.md](docs/BUILD_MAC.md) | macOS build instructions |
+| [BUILD_GUIDE.md](docs/BUILD_GUIDE.md) | General build guide |
+| [SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md) | Windows setup instructions |
+| [WINDOWS_TEST_CHECKLIST.md](docs/WINDOWS_TEST_CHECKLIST.md) | Windows testing guide |
+
+---
+
+## Project Structure
+
+```
+swine-monitor/
+├── src/                    # Source code
+│   ├── gui/                # PyQt6 GUI components
+│   ├── detector.py         # YOLO detection engine
+│   ├── database.py         # SQLite operations
+│   ├── notification.py     # Email/Discord handlers
 │   └── ...
-├── data/                # データ保存先
-│   ├── images/          # 検知画像
-│   └── breeding_logs.db # ログデータベース
-└── models/              # AIモデル格納場所
-````
+├── scripts/                # Build scripts
+│   ├── build.spec          # PyInstaller configuration
+│   ├── build_mac.sh        # macOS build script
+│   └── build_windows.bat   # Windows build script
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+├── data/                   # Runtime data
+│   ├── images/             # Detection images
+│   └── detections.db       # SQLite database
+├── models/                 # YOLO model files
+├── logs/                   # Log files
+├── config.yaml.template    # Configuration template
+└── .env.template           # Environment template
+```
 
-## セットアップ (Installation)
+---
 
-### 1\. 前提条件
+## Development
 
-  * Python 3.10 以上
-  * [uv](https://github.com/astral-sh/uv) パッケージマネージャー
-
-### 2\. インストール
+### Running Tests
 
 ```bash
-# リポジトリのクローン
-git clone [https://github.com/tokushima24/mounting_monitor.git](https://github.com/tokushima24/mounting_monitor.git)
-cd mounting_monitor
-
-# 依存ライブラリの同期
-uv sync
+pytest tests/ -v
 ```
 
-### 3\. 設定ファイルの準備
+### Code Style
 
-ルートディレクトリに `.env` ファイルを作成し、以下の情報を記述してください。
-
-```ini
-# .env
-# 各豚舎のRTSP URL
-RTSP_URL_1=rtsp://admin:pass@192.168.1.10:558/LiveChannel/0/media.smp
-RTSP_URL_2=rtsp://admin:pass@192.168.1.11:558/LiveChannel/0/media.smp
-# ... (RTSP_URL_7 まで)
-
-# Discord Webhook URL
-DISCORD_WEBHOOK_URL=[https://discord.com/api/webhooks/xxxx/xxxx](https://discord.com/api/webhooks/xxxx/xxxx)
-
-# 管理者パスワード (設定画面用)
-ADMIN_PASSWORD=admin123
-```
-
-## 実行方法 (Usage)
-
-以下のコマンドでアプリケーションを起動します。
+This project follows PEP 8 with type hints for all functions.
 
 ```bash
-uv run python -m src.gui.main
+# Check style
+flake8 src/
+
+# Type checking
+mypy src/
 ```
 
-1.  左側のパネルから「豚舎」を選択します。
-2.  **「Start Monitoring」** を押すと監視を開始します。
-3.  設定を変更する場合は **「Settings (Admin)」** を押し、パスワードを入力してください。
+---
 
-## 開発者向け情報
+## Troubleshooting
 
-  * **コードフォーマット**: `uv run black src/`
-  * **静的解析**: `uv run flake8 src/`
+| Issue | Solution |
+|-------|----------|
+| Camera not connecting | Verify RTSP URL format: `rtsp://user:pass@ip:port/path` |
+| Email not sending | Use Gmail App Password (not regular password) |
+| Detection not working | Check model path in config.yaml |
+| App crashes on startup | Verify .env file exists and is properly configured |
+
+---
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Contact
+
+BIRC Team - Biological Information Research Center
+
+---
+
+## Acknowledgments
+
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
+- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) for GUI framework

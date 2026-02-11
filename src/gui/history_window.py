@@ -1,4 +1,3 @@
-# src/gui/history_window.py
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget,
@@ -15,9 +14,11 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QGroupBox,
     QAbstractItemView,
+    QMenu,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QCursor
 
 # Import Database class and Utils
 from src.database import Database
@@ -30,7 +31,7 @@ class HistoryWindow(QWidget):
         self.setWindowTitle("Detection History Log")
         self.resize(1100, 700)
 
-        # ベースディレクトリの取得 (画像のパス解決用)
+        # Get Base Directory
         self.base_dir = get_base_dir()
 
         # Initialize Database connection
@@ -51,7 +52,7 @@ class HistoryWindow(QWidget):
         panel = QFrame()
         panel.setFixedWidth(320)
 
-        # ★修正: 文字色を黒(#000000)に強制し、背景を明るいグレーにする
+        # Style: High contrast with improved calendar
         panel.setStyleSheet(
             """
             QFrame {
@@ -67,10 +68,42 @@ class HistoryWindow(QWidget):
                 background-color: #ffffff;
                 color: #000000;
                 border: 1px solid #ccc;
+                padding: 5px;
             }
-            QCalendarWidget QWidget {
-                alternate-background-color: #e0e0e0;
+            /* Calendar styling */
+            QCalendarWidget {
+                background-color: #ffffff;
+            }
+            QCalendarWidget QToolButton {
                 color: #000000;
+                background-color: #f0f0f0;
+                border: none;
+                padding: 5px;
+                margin: 2px;
+            }
+            QCalendarWidget QToolButton:hover {
+                background-color: #e0e0e0;
+            }
+            QCalendarWidget QMenu {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QCalendarWidget QSpinBox {
+                background-color: #ffffff;
+                color: #000000;
+                selection-background-color: #3d8ec9;
+            }
+            QCalendarWidget QWidget#qt_calendar_navigationbar {
+                background-color: #e0e0e0;
+            }
+            QCalendarWidget QAbstractItemView:enabled {
+                color: #000000;
+                background-color: #ffffff;
+                selection-background-color: #3d8ec9;
+                selection-color: #ffffff;
+            }
+            QCalendarWidget QAbstractItemView:disabled {
+                color: #aaa;
             }
         """
         )
@@ -78,39 +111,36 @@ class HistoryWindow(QWidget):
         layout = QVBoxLayout(panel)
 
         # 1. Calendar Widget
-        layout.addWidget(QLabel("📅 Date Filter"))
+        layout.addWidget(QLabel("Date Filter"))
         self.calendar = QCalendarWidget()
         self.calendar.setGridVisible(True)
+        self.calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
+        self.calendar.setHorizontalHeaderFormat(QCalendarWidget.HorizontalHeaderFormat.ShortDayNames)
+        self.calendar.setMinimumHeight(250)
         self.calendar.clicked.connect(self.load_logs)
         layout.addWidget(self.calendar)
 
         layout.addSpacing(15)
 
         # 2. Barn Filter ComboBox
-        layout.addWidget(QLabel("🏠 Barn Filter"))
         self.barn_filter = QComboBox()
-        self.barn_filter.addItems(
-            [
-                "All",
-                "Barn 1",
-                "Barn 2",
-                "Barn 3",
-                "Barn 4",
-                "Barn 5",
-                "Barn 6",
-                "Barn 7",
-                "Webcam",
-            ]
-        )
+        self.barn_filter.addItem("All")
+        
+        # Load cameras from DB
+        cameras = self.db.get_cameras()
+        for cam in cameras:
+            # cam: (id, name, source, description, ...)
+            self.barn_filter.addItem(cam[1])
+            
         self.barn_filter.currentTextChanged.connect(self.load_logs)
         layout.addWidget(self.barn_filter)
 
         layout.addSpacing(15)
 
         # 3. Refresh Button
-        self.btn_refresh = QPushButton("🔄 Refresh Data")
+        self.btn_refresh = QPushButton("Refresh Data")
         self.btn_refresh.setMinimumHeight(40)
-        # ボタンも見やすくスタイリング
+
         self.btn_refresh.setStyleSheet(
             """
             QPushButton {
@@ -134,18 +164,36 @@ class HistoryWindow(QWidget):
         """Create the right main panel with a list and image preview."""
         splitter = QSplitter(Qt.Orientation.Vertical)
 
+        # GroupBox styling to avoid title background overlap
+        groupbox_style = """
+            QGroupBox {
+                color: #000000;
+                font-weight: bold;
+                background-color: #ffffff;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                margin-top: 12px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 2px 8px;
+                background-color: #ffffff;
+            }
+        """
+
         # --- Top: Detection List (Table) ---
         list_group = QGroupBox("Detection Logs")
-        # グループボックスのタイトル色も指定
-        list_group.setStyleSheet("QGroupBox { color: #000000; font-weight: bold; }")
+        list_group.setStyleSheet(groupbox_style)
 
         list_layout = QVBoxLayout()
 
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Time", "Barn", "Confidence", "Details"])
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["ID", "Date", "Time", "Barn", "Class", "Conf."])
 
-        # ★修正: テーブルの配色を白背景・黒文字に固定
+        # Table styling
         self.table.setStyleSheet(
             """
             QTableWidget {
@@ -160,20 +208,26 @@ class HistoryWindow(QWidget):
                 color: #000000;
                 padding: 4px;
                 border: 1px solid #ccc;
+                font-weight: bold;
             }
         """
         )
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Date
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Time
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)           # Barn
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Class
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Conf
 
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)  # Hide row numbers
 
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.show_context_menu)
         self.table.itemClicked.connect(self.on_row_clicked)
 
         list_layout.addWidget(self.table)
@@ -182,7 +236,7 @@ class HistoryWindow(QWidget):
 
         # --- Bottom: Image Preview ---
         preview_group = QGroupBox("Image Preview")
-        preview_group.setStyleSheet("QGroupBox { color: #000000; font-weight: bold; }")
+        preview_group.setStyleSheet(groupbox_style)
         preview_layout = QVBoxLayout()
 
         self.image_label = QLabel("Select a row to view the captured image")
@@ -232,36 +286,49 @@ class HistoryWindow(QWidget):
             self.current_logs.append(log)
             self.table.insertRow(row_idx)
 
+            # log structure: (id, time_str, image_path, confidence, is_mounting, details, barn_id, class_name)
+            log_id = str(log[0])
             full_time_str = log[1]
-            time_display = (
-                full_time_str.split(" ")[1] if " " in full_time_str else full_time_str
-            )
+            
+            # Split date and time
+            if " " in full_time_str:
+                date_part, time_part = full_time_str.split(" ", 1)
+            else:
+                date_part = full_time_str
+                time_part = ""
 
-            barn_id = log[6]
-            conf = f"{log[3]:.2f}"
-            details = log[5]
+            barn_id = log[6] if log[6] else "Unknown"
+            class_name = log[7] if len(log) > 7 and log[7] else "Unknown"
+            conf = f"{log[3]:.1%}" if log[3] else "N/A"
 
-            self.table.setItem(row_idx, 0, QTableWidgetItem(time_display))
-            self.table.setItem(row_idx, 1, QTableWidgetItem(barn_id))
-            self.table.setItem(row_idx, 2, QTableWidgetItem(conf))
-            self.table.setItem(row_idx, 3, QTableWidgetItem(details))
+            self.table.setItem(row_idx, 0, QTableWidgetItem(log_id))
+            self.table.setItem(row_idx, 1, QTableWidgetItem(date_part))
+            self.table.setItem(row_idx, 2, QTableWidgetItem(time_part))
+            self.table.setItem(row_idx, 3, QTableWidgetItem(barn_id))
+            self.table.setItem(row_idx, 4, QTableWidgetItem(class_name))
+            self.table.setItem(row_idx, 5, QTableWidgetItem(conf))
 
     def on_row_clicked(self, item):
         """Handle table row click to display the image."""
         row = item.row()
         if row < len(self.current_logs):
             log_data = self.current_logs[row]
-            image_rel_path = log_data[2]  # DBには相対パスが入っていることが多い
+            image_rel_path = log_data[2]
 
-            # ★修正: パスの解決ロジックを強化
-            # 1. まずそのままチェック
             file_path = Path(image_rel_path)
 
-            # 2. 相対パスなら、アプリのベースディレクトリと結合してみる
             if not file_path.is_absolute():
-                file_path = self.base_dir / file_path
+                # Try relative to base_dir
+                possible_path = self.base_dir / file_path
+                if possible_path.exists():
+                    file_path = possible_path
+                else:
+                    # Try relative to data dir if starts with data/
+                    if str(file_path).startswith("data/"):
+                         # Already checked base_dir/data/... above, so this might be redundant
+                         # but good for safety if structure changes.
+                         pass
 
-            # 存在確認
             if file_path.exists():
                 pixmap = QPixmap(str(file_path))
                 if not pixmap.isNull():
@@ -276,7 +343,51 @@ class HistoryWindow(QWidget):
                         f"Failed to load image.\nFormat error: {file_path}"
                     )
             else:
-                # デバッグ用に探したパスを表示
                 self.image_label.setText(
-                    f"Image not found at:\n{file_path}\n\n(Original DB record: {image_rel_path})"
+                    f"Image not found at:\n{file_path}\n\n(Original DB record: {image_rel_path})\n\n"
+                    "Tip: If you moved the data folder, try keeping 'data/' structure relative to the app."
                 )
+
+    def show_context_menu(self, position):
+        """Show context menu for table rows."""
+        menu = QMenu()
+        delete_action = menu.addAction("Delete Record")
+        action = menu.exec(QCursor.pos())
+        
+        if action == delete_action:
+            self.delete_selected_row()
+
+    def delete_selected_row(self):
+        """Delete the currently selected row from database and table."""
+        current_row = self.table.currentRow()
+        if current_row < 0:
+            return
+
+        # Get log ID from the first column (hidden or visible)
+        # We stored log ID in column 0
+        item_id = self.table.item(current_row, 0)
+        if not item_id:
+            return
+            
+        log_id = int(item_id.text())
+        
+        confirm = QMessageBox.question(
+            self,
+            "Confirm Delete",
+            "Are you sure you want to delete this detection record?\nThe image file will NOT be deleted.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if confirm == QMessageBox.StandardButton.Yes:
+            if self.db.delete_detection(log_id):
+                self.table.removeRow(current_row)
+                # Remove from local list as well
+                if current_row < len(self.current_logs):
+                    self.current_logs.pop(current_row)
+                
+                # Update image preview if needed
+                self.image_label.setText("Record deleted.")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to delete record from database.")
+

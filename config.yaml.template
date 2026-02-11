@@ -1,0 +1,45 @@
+# ==============================================
+# Swine Monitor Configuration Template
+# ==============================================
+# Copy this file to 'config.yaml' and customize
+# ==============================================
+
+# Detection Settings
+# ------------------
+detection:
+  # Path to YOLO model file (relative to application root)
+  model_path: models/yolo11s_best.pt
+  
+  # Minimum confidence threshold for detections (0.0 - 1.0)
+  confidence_threshold: 0.5
+  
+  # Target class ID for mounting behavior
+  # (depends on your trained model)
+  target_class: 1
+
+# Storage Settings
+# ----------------
+storage:
+  # Directory to save detection images
+  save_dir: data/images
+  
+  # SQLite database path
+  db_path: data/detections.db
+  
+  # Whether to save images with bounding boxes drawn
+  save_annotated_image: true
+
+# Notification Settings
+# ---------------------
+notification:
+  # Minimum seconds between notifications (cooldown)
+  cooldown: 30
+
+# Logging Settings
+# ----------------
+logging:
+  # Log file path
+  file: logs/system.log
+  
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: INFO

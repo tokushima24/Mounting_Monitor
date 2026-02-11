@@ -2,9 +2,11 @@ import cv2
 import os
 import time
 import logging
+from typing import Optional
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QImage
 from src.detector import Detector
+from src.notification_scheduler import NotificationScheduler
 
 # Logger settings
 logger = logging.getLogger("SwineMonitor.Video")
@@ -14,17 +16,23 @@ class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(QImage)
     status_signal = pyqtSignal(str)
 
-    def __init__(self, rtsp_url, barn_id):
+    def __init__(
+        self,
+        rtsp_url,
+        barn_id: str,
+        scheduler: Optional[NotificationScheduler] = None,
+    ):
         super().__init__()
         self.rtsp_url = rtsp_url
         self.barn_id = barn_id
+        self.scheduler = scheduler
         self._run_flag = True
 
         # From UDP to TCP for error of decode et, al.
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
-        # Initialize Detector
-        self.detector = Detector(barn_id=self.barn_id)
+        # Initialize Detector with scheduler
+        self.detector = Detector(barn_id=self.barn_id, scheduler=self.scheduler)
 
     def run(self):  # This function is called when the window thread is opened
         while self._run_flag:
@@ -58,15 +66,17 @@ class VideoThread(QThread):
                         last_frame_time = time.time()
 
                         # Inference & Annotate
-                        annotated_frame, detected, conf = self.detector.process_frame(frame)
+                        annotated_frame, detected, conf, class_name = self.detector.process_frame(frame)
 
                         if detected:
-                            self.status_signal.emit(f"DETECTED! (Conf: {conf:.2f})")
+                            self.status_signal.emit(f"{class_name} DETECTED! (Conf: {conf:.2f})")
 
                         # Draw
                         rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                         h, w, ch = rgb_image.shape
                         bytes_per_line = ch * w
+                        
+                        # Create QImage matching the numpy array
                         qt_image = QImage(
                             rgb_image.data,
                             w,
@@ -74,6 +84,11 @@ class VideoThread(QThread):
                             bytes_per_line,
                             QImage.Format.Format_RGB888,
                         )
+                        # CRITICAL: QImage(data, ...) creates a view, not a copy.
+                        # We MUST copy() it because rgb_image will be destroyed
+                        # at the end of this iteration, while the Main Thread
+                        # processes the emitted signal asynchronously.
+                        qt_image = qt_image.copy()
 
                         self.change_pixmap_signal.emit(qt_image)
 

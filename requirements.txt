@@ -1,5 +1,25 @@
-ultralytics
-streamlit
-opencv-python
-pandas
-requests
+# Requirements for Swine Monitor
+# Install with: pip install -r requirements.txt
+
+# Core Application
+PyQt6>=6.4.0
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Configuration
+python-dotenv>=1.0.0
+PyYAML>=6.0
+
+# Notifications
+requests>=2.28.0
+
+# Security
+cryptography>=41.0.0
+
+# Database (built-in, but listed for clarity)
+# sqlite3 - included in Python
+
+# Build Tool (development only)
+pyinstaller>=5.0.0

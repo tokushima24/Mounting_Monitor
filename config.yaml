@@ -1,16 +1,13 @@
-debug:
-  mode: false
-  annotated: true
 detection:
   model_path: models/with_mounting_dark.pt
-  confidence_threshold: 0.6
+  confidence_threshold: 0.5
   target_class: 1
 storage:
-  base_path: data
   save_dir: data/images
+  db_path: data/detections.db
   save_annotated_image: false
 notification:
-  cooldown: 40
+  cooldown: 30
 logging:
   file: logs/system.log
   level: INFO

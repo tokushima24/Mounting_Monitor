@@ -1,25 +1,66 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# ===========================================
+# Swine Monitor - Git Ignore Configuration
+# ===========================================
 
-# Data
-data/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
 
 # Virtual environments
-.venv
+.venv/
+venv/
+ENV/
 
-# System logs
-*.log
+# Build artifacts
+build/
+dist/
+*.spec.bak
 
-# models
-*.pt
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# environment
-.env
-
-# mac
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Application data (generated at runtime)
+data/
+logs/
+detection_images/
+detections/
+*.db
+
+# Models (large files, download separately)
+models/*.pt
+models/*.onnx
+
+# Environment files (contain secrets)
+.env
+.encryption_key
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
