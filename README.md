@@ -1,21 +1,21 @@
-# Swine Monitor
+# Mounting Monitor
 
-**Real-time pig breeding behavior detection system using YOLO and PyQt6**
+**real-time pig breeding behavior detection system using yolo and pyqt6**
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![license: mit](https://img.shields.io/badge/license-mit-yellow.svg)](https://opensource.org/licenses/mit)
 
 ## Overview
 
-Swine Monitor is a desktop application for automated detection of pig mating (mounting) behavior using computer vision. It provides real-time monitoring, notification alerts, and detection history management.
+mounting behavior monitor is a desktop application for automated detection of pig mounting behavior using computer vision. it provides real-time monitoring, notification alerts, and detection history management.
 
 ### Key Features
 
-- **Real-time Detection**: YOLO-based mounting behavior detection from IP cameras
-- **Multi-barn Support**: Monitor multiple barns/pens simultaneously
-- **Notification System**: Email and Discord alerts with customizable schedules
-- **Detection History**: Browse past detections with image preview
-- **Cross-platform**: Runs on Windows and macOS
+- **real-time detection**: yolo-based mounting behavior detection from ip cameras
+- **multi-barn support**: monitor multiple barns/pens simultaneously
+- **notification system**: email and discord alerts with customizable schedules
+- **detection history**: browse past detections with image preview
+- **cross-platform**: runs on windows and macos
 
 ## Quick Start
 
@@ -29,8 +29,8 @@ Swine Monitor is a desktop application for automated detection of pig mating (mo
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/swine-monitor.git
-   cd swine-monitor
+   git clone https://github.com/tokushima24/Mounting_Monitor
+   cd Mounting_Monitor
    ```
 
 2. **Create virtual environment**
@@ -203,12 +203,6 @@ mypy src/
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## Contact
-
-BIRC Team - Biological Information Research Center
 
 ---
 
