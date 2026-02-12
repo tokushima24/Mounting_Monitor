@@ -56,7 +56,7 @@ mounting behavior monitor is a desktop application for automated detection of pi
 5. **Add YOLO model**
    ```bash
    # Place your trained model in the models/ directory
-   cp /path/to/your/model.pt models/yolo11s_best.pt
+   cp /path/to/your/model.pt models/yolo_best.pt
    ```
 
 6. **Run the application**
@@ -72,7 +72,7 @@ mounting behavior monitor is a desktop application for automated detection of pi
 
 ```yaml
 detection:
-  model_path: models/yolo11s_best.pt
+  model_path: models/yolo_best.pt
   confidence_threshold: 0.5
   target_class: 1  # 1 = Mounting behavior
 
@@ -143,7 +143,7 @@ See [docs/BUILD_MAC.md](docs/BUILD_MAC.md) for detailed build instructions.
 ## Project Structure
 
 ```
-swine-monitor/
+Mounting_Monitor/
 ├── src/                    # Source code
 │   ├── gui/                # PyQt6 GUI components
 │   ├── detector.py         # YOLO detection engine
