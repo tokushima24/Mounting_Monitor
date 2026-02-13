@@ -1,13 +1,13 @@
 @echo off
 REM ============================================
-REM Swine Monitor - Windows Build Script
+REM Swine Monitor - Windows Build Script (uv)
 REM ============================================
 REM Usage: scripts\build_windows.bat (from project root)
 REM ============================================
 
 echo.
 echo ========================================
-echo   Swine Monitor Build Script
+echo   Swine Monitor Build Script (uv)
 echo ========================================
 echo.
 
@@ -15,36 +15,58 @@ REM Change to project root
 cd /d "%~dp0\.."
 echo Working directory: %CD%
 
-REM Check Python
-python --version >nul 2>&1
+REM Check uv installation
+echo [0/5] Checking uv installation...
+uv --version >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Python is not installed or not in PATH
+    echo.
+    echo [ERROR] uv is not installed or not in PATH
+    echo.
+    echo Please install uv using one of these methods:
+    echo.
+    echo Method 1 (PowerShell - Recommended):
+    echo   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 ^| iex"
+    echo.
+    echo Method 2 (pip):
+    echo   pip install uv
+    echo.
+    echo Method 3 (pipx):
+    echo   pipx install uv
+    echo.
+    echo See BUILD_GUIDE.md for detailed instructions.
+    echo.
     pause
     exit /b 1
 )
 
-REM Check pip packages
-echo [1/4] Checking dependencies...
-pip show pyinstaller >nul 2>&1
-if errorlevel 1 (
-    echo Installing PyInstaller...
-    pip install pyinstaller
+uv --version
+echo uv detected successfully.
+
+REM Create/sync virtual environment
+echo [1/5] Creating/syncing virtual environment with uv...
+if not exist ".venv" (
+    echo Creating new virtual environment...
+    uv venv
 )
 
-REM Install project dependencies
-echo [2/4] Installing project dependencies...
-pip install -r requirements.txt
+REM Sync dependencies
+echo [2/5] Installing dependencies...
+uv pip install -r requirements.txt
+
+REM Install PyInstaller
+echo [3/5] Installing PyInstaller...
+uv pip install pyinstaller
 
 REM Clean previous builds
 if exist "dist\SwineMonitor" rmdir /s /q "dist\SwineMonitor"
 if exist "build" rmdir /s /q "build"
 
-REM Build executable
-echo [3/4] Building executable...
-pyinstaller scripts\build.spec --clean
+REM Build executable using uv run
+echo [4/5] Building executable...
+uv run pyinstaller scripts\build.spec --clean
 
 REM Create distribution folder
-echo [4/4] Creating distribution package...
+echo [5/5] Creating distribution package...
 if not exist "dist\SwineMonitor" (
     echo [ERROR] Build failed
     pause

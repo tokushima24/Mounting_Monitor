@@ -9,8 +9,60 @@ This guide explains how to build the Windows distribution package.
 ## Prerequisites
 
 - Windows 10/11 (64-bit)
-- Python 3.10 or higher
+- **uv** (Fast Python package manager)
 - Git
+
+---
+
+## uv Setup (Recommended)
+
+`uv` is a fast Python package and project manager written in Rust. It's 10-100x faster than pip.
+
+### Installation
+
+**Method 1: PowerShell (Recommended)**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Method 2: Using pip**
+```powershell
+pip install uv
+```
+
+**Method 3: Using pipx**
+```powershell
+pipx install uv
+```
+
+### Verify Installation
+```powershell
+uv --version
+```
+Should output: `uv x.x.x`
+
+### Why uv?
+- ⚡ 10-100x faster than pip
+- 🔒 Deterministic dependency resolution
+- 🎯 Drop-in replacement for pip
+- 📦 Built-in virtual environment management
+
+---
+
+## Python Setup (Optional - uv manages Python automatically)
+
+> **Note**: uv can automatically download and manage Python versions. You typically don't need to install Python separately when using uv.
+
+If you want to install Python manually:
+
+1. Download Python from [python.org/downloads](https://www.python.org/downloads/)
+   - Recommended: Python 3.10, 3.11, or 3.12
+   - **IMPORTANT**: ☑ Check "Add Python to PATH"
+
+2. Verify installation:
+   ```powershell
+   python --version
+   ```
 
 ---
 
@@ -23,33 +75,38 @@ git clone <repository-url>
 cd for_BIRC_Monitor
 ```
 
-### 2. Create Virtual Environment (Recommended)
+### 2. Run Build Script (Automatic Setup)
+
+The build script will automatically:
+- Create a virtual environment (if not exists)
+- Install all dependencies using uv
+- Build the executable
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\activate
+.\scripts\build_windows.bat
 ```
 
-### 3. Install Dependencies
+### 3. Manual Build (Optional)
+
+If you prefer manual control:
 
 ```powershell
-pip install -r requirements.txt
-pip install pyinstaller
+# Create virtual environment
+uv venv
+
+# Install dependencies
+uv pip install -r requirements.txt
+uv pip install pyinstaller
+
+# Build using uv run (recommended)
+uv run pyinstaller scripts\build.spec --clean
+
+# Or activate venv first, then build
+.\.venv\Scripts\activate
+pyinstaller scripts\build.spec --clean
 ```
 
-### 4. Run Build Script
-
-```powershell
-.\build_windows.bat
-```
-
-Or manually:
-
-```powershell
-pyinstaller build.spec --clean
-```
-
-### 5. Create Distribution Package
+### 4. Create Distribution Package
 
 After build completes, the distribution folder will be at:
 ```
@@ -67,14 +124,14 @@ mkdir dist\SwineMonitor\logs
 copy docs\SETUP_WINDOWS.md dist\SwineMonitor\README.txt
 ```
 
-### 6. Add YOLO Model
+### 5. Add YOLO Model
 
 Copy your trained model to:
 ```
 dist\SwineMonitor\models\best.pt
 ```
 
-### 7. Create ZIP Archive
+### 6. Create ZIP Archive
 
 ```powershell
 Compress-Archive -Path dist\SwineMonitor\* -DestinationPath SwineMonitor_v1.0.0.zip
@@ -101,6 +158,61 @@ dist/
 ---
 
 ## Troubleshooting Build Issues
+
+### uv Not Found
+
+**Error**: `uv is not installed or not in PATH`
+
+**Solutions**:
+1. Install uv (see "uv Setup" section above):
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+
+2. Verify installation:
+   ```powershell
+   uv --version
+   ```
+
+3. If installed but not in PATH:
+   - Restart terminal
+   - Check PATH: `echo $env:PATH` (PowerShell)
+   - uv is typically installed to: `%USERPROFILE%\.cargo\bin`
+
+4. Alternative: Install via pip:
+   ```powershell
+   pip install uv
+   ```
+
+### pip or pyinstaller Not Recognized
+
+**Error**: `'pip' は、内部コマンドまたは外部コマンド、操作可能なプログラムまたはバッチ ファイルとして認識されていません。`
+
+**Error**: `'pyinstaller' は、内部コマンドまたは外部コマンド、操作可能なプログラムまたはバッチ ファイルとして認識されていません。`
+
+**Cause**: Virtual environment is not activated, or commands are being run outside the virtual environment.
+
+**Solutions**:
+
+1. **Use `uv run` (Recommended)**: This automatically uses the virtual environment:
+   ```powershell
+   uv run pyinstaller scripts\build.spec --clean
+   ```
+
+2. **Activate virtual environment first**:
+   ```powershell
+   .\.venv\Scripts\activate
+   pip --version        # Should work now
+   pyinstaller --version # Should work now
+   ```
+
+3. **Use full path to executables**:
+   ```powershell
+   .\.venv\Scripts\pip.exe list
+   .\.venv\Scripts\pyinstaller.exe --version
+   ```
+
+4. **Re-run the build script**: The updated `build_windows.bat` uses `uv run` automatically.
 
 ### Import Errors
 
