@@ -4,7 +4,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
@@ -114,8 +113,12 @@ class HistoryWindow(QWidget):
         layout.addWidget(QLabel("Date Filter"))
         self.calendar = QCalendarWidget()
         self.calendar.setGridVisible(True)
-        self.calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
-        self.calendar.setHorizontalHeaderFormat(QCalendarWidget.HorizontalHeaderFormat.ShortDayNames)
+        self.calendar.setVerticalHeaderFormat(
+            QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader
+        )
+        self.calendar.setHorizontalHeaderFormat(
+            QCalendarWidget.HorizontalHeaderFormat.ShortDayNames
+        )
         self.calendar.setMinimumHeight(250)
         self.calendar.clicked.connect(self.load_logs)
         layout.addWidget(self.calendar)
@@ -125,37 +128,15 @@ class HistoryWindow(QWidget):
         # 2. Barn Filter ComboBox
         self.barn_filter = QComboBox()
         self.barn_filter.addItem("All")
-        
+
         # Load cameras from DB
         cameras = self.db.get_cameras()
         for cam in cameras:
             # cam: (id, name, source, description, ...)
             self.barn_filter.addItem(cam[1])
-            
+
         self.barn_filter.currentTextChanged.connect(self.load_logs)
         layout.addWidget(self.barn_filter)
-
-        layout.addSpacing(15)
-
-        # 3. Refresh Button
-        self.btn_refresh = QPushButton("Refresh Data")
-        self.btn_refresh.setMinimumHeight(40)
-
-        self.btn_refresh.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                font-weight: bold;
-                border-radius: 4px;
-                border: none;
-            }
-            QPushButton:hover { background-color: #1976D2; }
-            QPushButton:pressed { background-color: #0D47A1; }
-        """
-        )
-        self.btn_refresh.clicked.connect(self.load_logs)
-        layout.addWidget(self.btn_refresh)
 
         layout.addStretch()
         self.main_layout.addWidget(panel)
@@ -191,7 +172,9 @@ class HistoryWindow(QWidget):
 
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["ID", "Date", "Time", "Barn", "Class", "Conf."])
+        self.table.setHorizontalHeaderLabels(
+            ["ID", "Date", "Time", "Barn", "Class", "Conf."]
+        )
 
         # Table styling
         self.table.setStyleSheet(
@@ -217,7 +200,7 @@ class HistoryWindow(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Date
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Time
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)           # Barn
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Barn
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Class
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Conf
 
@@ -289,7 +272,7 @@ class HistoryWindow(QWidget):
             # log structure: (id, time_str, image_path, confidence, is_mounting, details, barn_id, class_name)
             log_id = str(log[0])
             full_time_str = log[1]
-            
+
             # Split date and time
             if " " in full_time_str:
                 date_part, time_part = full_time_str.split(" ", 1)
@@ -325,9 +308,9 @@ class HistoryWindow(QWidget):
                 else:
                     # Try relative to data dir if starts with data/
                     if str(file_path).startswith("data/"):
-                         # Already checked base_dir/data/... above, so this might be redundant
-                         # but good for safety if structure changes.
-                         pass
+                        # Already checked base_dir/data/... above, so this might be redundant
+                        # but good for safety if structure changes.
+                        pass
 
             if file_path.exists():
                 pixmap = QPixmap(str(file_path))
@@ -353,7 +336,7 @@ class HistoryWindow(QWidget):
         menu = QMenu()
         delete_action = menu.addAction("Delete Record")
         action = menu.exec(QCursor.pos())
-        
+
         if action == delete_action:
             self.delete_selected_row()
 
@@ -368,26 +351,27 @@ class HistoryWindow(QWidget):
         item_id = self.table.item(current_row, 0)
         if not item_id:
             return
-            
+
         log_id = int(item_id.text())
-        
+
         confirm = QMessageBox.question(
             self,
             "Confirm Delete",
             "Are you sure you want to delete this detection record?\nThe image file will NOT be deleted.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.No,
         )
-        
+
         if confirm == QMessageBox.StandardButton.Yes:
             if self.db.delete_detection(log_id):
                 self.table.removeRow(current_row)
                 # Remove from local list as well
                 if current_row < len(self.current_logs):
                     self.current_logs.pop(current_row)
-                
+
                 # Update image preview if needed
                 self.image_label.setText("Record deleted.")
             else:
-                QMessageBox.critical(self, "Error", "Failed to delete record from database.")
-
+                QMessageBox.critical(
+                    self, "Error", "Failed to delete record from database."
+                )
